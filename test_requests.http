@@ -1,0 +1,9 @@
+@host = localhost
+@port = 7331
+@region = euw1
+@game_name = JAMES DOAKES
+@tag_line = BOAT
+GET {{host}}:{{port}}/rank/{{region}}/{{game_name}}/{{tag_line}}
+Accept: application/json
+
+###

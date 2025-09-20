@@ -11,18 +11,23 @@ use serde_json::Value;
 struct AppState {
     client: Client,
     riot_api_key: String,
+    proxy_region: String,
 }
 
 #[tokio::main]
 async fn main() {
     dotenv().ok();
 
+    let server_port = env::var("SERVER_PORT").unwrap_or("7331".to_string());
     let riot_api_key = env::var("RIOT_API_KEY").expect("Riot API key not in environment variables.");
+    let proxy_region = env::var("PROXY_REGION").unwrap_or("europe".to_string());
+    
     let client = Client::new();
 
     let shared_state = Arc::new(AppState {
         client: client,
-        riot_api_key: riot_api_key
+        riot_api_key: riot_api_key,
+        proxy_region: proxy_region,
     });
 
     let app = Router::new()
@@ -35,7 +40,7 @@ async fn main() {
             }),
         );
 
-    let listener = tokio::net::TcpListener::bind("0.0.0.0:7331").await.unwrap();
+    let listener = tokio::net::TcpListener::bind(format!("localhost:{}", server_port)).await.unwrap();
     axum::serve(listener, app).await.unwrap();
 }
 
@@ -71,7 +76,7 @@ struct LeagueEntryDto {
 }
 
 async fn handle_get_rank(Path((region, game_name, tag_line)): Path<(String, String, String)>, state: Arc<AppState>) -> Json<Value> {
-    match fetch_rank(&state.client, &region, &game_name, &tag_line, &state.riot_api_key).await {
+    match fetch_rank(&state.client, &state.proxy_region, &region, &game_name, &tag_line, &state.riot_api_key).await {
         Ok(rank) => Json(rank),
         Err(e) => Json(serde_json::json!(
             {
@@ -83,14 +88,15 @@ async fn handle_get_rank(Path((region, game_name, tag_line)): Path<(String, Stri
 
 async fn fetch_rank(
     client: &Client,
-    region: &str,
+    proxy_region: &str,
+    league_region: &str,
     game_name: &str,
     tag_line: &str,
     api_key: &str,
 ) -> Result<Value, Error> {
     let summoner_url = format!(
         "https://{}.api.riotgames.com/riot/account/v1/accounts/by-riot-id/{}/{}?api_key={}",
-        "europe", game_name, tag_line, api_key
+        proxy_region, game_name, tag_line, api_key
     );
 
     let summoner_res: Value = client.get(&summoner_url).send().await?.json().await?;
@@ -99,7 +105,7 @@ async fn fetch_rank(
     // Step 2: Rank
     let rank_url = format!(
         "https://{}.api.riotgames.com/lol/league/v4/entries/by-puuid/{}?api_key={}",
-        region, summoner_id, api_key
+        league_region, summoner_id, api_key
     );
 
     let rank_res: Value = client.get(&rank_url).send().await?.json().await?;
