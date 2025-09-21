@@ -1,13 +1,13 @@
 mod riot_api;
 
-use std::env;
-use std::sync::Arc;
-use axum::{Router, routing::get, Json};
+use crate::riot_api::{LeagueEntryDto, RiotApi};
 use axum::extract::Path;
+use axum::{routing::get, Json, Router};
 use dotenv::dotenv;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
-use crate::riot_api::{LeagueEntryDto, RiotApi};
+use std::env;
+use std::sync::Arc;
 
 struct AppState {
     riot_api: RiotApi,

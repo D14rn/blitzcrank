@@ -1,10 +1,7 @@
 use reqwest::Client;
-use serde_json::Value;
-use std::{collections::HashMap, sync::Arc, time::{Instant}};
-use std::time::Duration;
-use serde::{Deserialize, Serialize};
 use serde::de::DeserializeOwned;
-use tokio::sync::Mutex;
+use serde::{Deserialize, Serialize};
+use serde_json::Value;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[allow(non_snake_case)]
@@ -60,17 +57,10 @@ impl From<serde_json::Error> for RiotApiError {
 
 pub type Result<T> = std::result::Result<T, RiotApiError>;
 
-struct CacheEntry {
-    value: Value,
-    inserted: Instant,
-    ttl: Option<Duration> // None = infinite duration
-}
-
 pub struct RiotApi {
     client: Client,
     api_key: String,
     proxy_region: String,
-    cache: Arc<Mutex<HashMap<String, CacheEntry>>>,
 }
 
 impl RiotApi {
@@ -79,30 +69,13 @@ impl RiotApi {
             client: Client::new(),
             api_key,
             proxy_region,
-            cache: Arc::new(Mutex::new(HashMap::new())),
         }
     }
 
-    async fn get<T>(&self, url: &str, check_cache: bool, ttl: Duration) -> Result<T>
+    async fn get<T>(&self, url: &str,) -> Result<T>
     where
         T: Serialize + DeserializeOwned + Clone
     {
-        let mut cache = self.cache.lock().await;
-
-        if check_cache {
-            if let Some(entry) = cache.get(url) {
-                if let Some(ttl) = entry.ttl {
-                    if entry.inserted.elapsed() < ttl {
-                        if let Ok(deserialized) = serde_json::from_value::<T>(entry.value.clone()) {
-                            return Ok(deserialized);
-                        }
-                    }
-                } else {
-                    cache.remove(url);
-                }
-            }
-        }
-
         let res = self.client
             .get(url)
             .header("X-Riot-Token", &self.api_key)
@@ -114,11 +87,6 @@ impl RiotApi {
         }
 
         let json: T = res.json().await?;
-        cache.insert(url.to_string(), CacheEntry {
-            value: serde_json::to_value(&json)?,
-            inserted: Instant::now(),
-            ttl: Option::from(ttl),
-        });
 
         Ok(json)
     }
@@ -129,7 +97,7 @@ impl RiotApi {
             self.proxy_region, game_name, tag_line
         );
 
-        self.get(&url, true, Duration::from_secs(1000)).await
+        self.get(&url).await
     }
 
     pub async fn get_league(&self, game_region: &str, puuid: &str) -> Result<Vec<LeagueEntryDto>> {
@@ -138,7 +106,7 @@ impl RiotApi {
             game_region, puuid
         );
 
-        self.get(&url, true, Duration::from_secs(60)).await
+        self.get(&url).await
     }
 
     pub async fn get_match(&self, game_region: &str, match_id: &str) -> Result<Value> {
@@ -146,6 +114,6 @@ impl RiotApi {
             "https://{}.api.riotgames.com/lol/match/v5/matches/{}",
             game_region, match_id
         );
-        self.get(&url, true, Duration::from_secs(600)).await
+        self.get(&url).await
     }
 }
