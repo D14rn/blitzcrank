@@ -60,11 +60,17 @@ impl From<serde_json::Error> for RiotApiError {
 
 pub type Result<T> = std::result::Result<T, RiotApiError>;
 
+struct CacheEntry {
+    value: Value,
+    inserted: Instant,
+    ttl: Option<Duration> // None = infinite duration
+}
+
 pub struct RiotApi {
     client: Client,
     api_key: String,
     proxy_region: String,
-    cache: Arc<Mutex<HashMap<String, (Value, Instant, Duration)>>>,
+    cache: Arc<Mutex<HashMap<String, CacheEntry>>>,
 }
 
 impl RiotApi {
@@ -84,10 +90,12 @@ impl RiotApi {
         let mut cache = self.cache.lock().await;
 
         if check_cache {
-            if let Some((cached, ts, entry_ttl)) = cache.get(url) {
-                if ts.elapsed() < *entry_ttl {
-                    if let Ok(deserialized) = serde_json::from_value::<T>(cached.clone()) {
-                        return Ok(deserialized);
+            if let Some(entry) = cache.get(url) {
+                if let Some(ttl) = entry.ttl {
+                    if entry.inserted.elapsed() < ttl {
+                        if let Ok(deserialized) = serde_json::from_value::<T>(entry.value.clone()) {
+                            return Ok(deserialized);
+                        }
                     }
                 } else {
                     cache.remove(url);
@@ -106,7 +114,11 @@ impl RiotApi {
         }
 
         let json: T = res.json().await?;
-        cache.insert(url.to_string(), (serde_json::to_value(&json)?, Instant::now(), ttl));
+        cache.insert(url.to_string(), CacheEntry {
+            value: serde_json::to_value(&json)?,
+            inserted: Instant::now(),
+            ttl: Option::from(ttl),
+        });
 
         Ok(json)
     }
