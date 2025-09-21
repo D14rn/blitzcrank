@@ -18,10 +18,11 @@ struct AppState {
 async fn main() {
     dotenv().ok();
 
+    let server_addr = env::var("SERVER_ADDR").unwrap_or("localhost".to_string());
     let server_port = env::var("SERVER_PORT").unwrap_or("7331".to_string());
     let riot_api_key = env::var("RIOT_API_KEY").expect("Riot API key not in environment variables.");
     let proxy_region = env::var("PROXY_REGION").unwrap_or("europe".to_string());
-    
+
     let client = Client::new();
 
     let shared_state = Arc::new(AppState {
@@ -40,7 +41,8 @@ async fn main() {
             }),
         );
 
-    let listener = tokio::net::TcpListener::bind(format!("localhost:{}", server_port)).await.unwrap();
+    let bind_addr = format!("{}:{}", server_addr, server_port);
+    let listener = tokio::net::TcpListener::bind(bind_addr).await.unwrap();
     axum::serve(listener, app).await.unwrap();
 }
 
