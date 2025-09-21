@@ -1,8 +1,7 @@
-use crate::riot_api::dtos::{AccountDto, LeagueEntryDto};
+use crate::riot_api::dtos::{AccountDto, LeagueEntryDto, MatchDto};
 use reqwest::Client;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
-use serde_json::Value;
 
 #[derive(Debug)]
 pub enum RiotApiError {
@@ -91,7 +90,7 @@ impl RiotApi {
         self.get(&url).await
     }
 
-    pub async fn get_match(&self, game_region: &str, match_id: &str) -> Result<Value> {
+    pub async fn get_match(&self, game_region: &str, match_id: &str) -> Result<MatchDto> {
         let url = format!(
             "https://{}.api.riotgames.com/lol/match/v5/matches/{}",
             game_region, match_id
