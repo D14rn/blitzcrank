@@ -1,26 +1,8 @@
+use crate::riot_api::dtos::{AccountDto, LeagueEntryDto};
 use reqwest::Client;
 use serde::de::DeserializeOwned;
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use serde_json::Value;
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
-#[allow(non_snake_case)]
-pub struct LeagueEntryDto {
-    pub queueType: String,
-    pub tier: String,
-    pub rank: String,
-    pub leaguePoints: i32,
-    pub wins: i32,
-    pub losses: i32,
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
-#[allow(non_snake_case)]
-pub struct AccountDto {
-    pub puuid: String,
-    pub gameName: String,
-    pub tagLine: String,
-}
 
 #[derive(Debug)]
 pub enum RiotApiError {

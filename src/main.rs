@@ -1,9 +1,10 @@
 mod riot_api;
 
-use crate::riot_api::{LeagueEntryDto, RiotApi};
+use crate::riot_api::client::RiotApi;
 use axum::extract::Path;
 use axum::{routing::get, Json, Router};
 use dotenv::dotenv;
+use riot_api::dtos::*;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::env;
