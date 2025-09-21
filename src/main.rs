@@ -1,17 +1,16 @@
+mod riot_api;
+
 use std::env;
 use std::sync::Arc;
 use axum::{Router, routing::get, Json};
 use axum::extract::Path;
 use dotenv::dotenv;
-use reqwest::{Client, Error};
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
-
+use serde_json::{json, Value};
+use crate::riot_api::{LeagueEntryDto, RiotApi};
 
 struct AppState {
-    client: Client,
-    riot_api_key: String,
-    proxy_region: String,
+    riot_api: RiotApi,
 }
 
 #[tokio::main]
@@ -23,12 +22,9 @@ async fn main() {
     let riot_api_key = env::var("RIOT_API_KEY").expect("Riot API key not in environment variables.");
     let proxy_region = env::var("PROXY_REGION").unwrap_or("europe".to_string());
 
-    let client = Client::new();
-
+    let riot_api = RiotApi::new(riot_api_key, proxy_region);
     let shared_state = Arc::new(AppState {
-        client: client,
-        riot_api_key: riot_api_key,
-        proxy_region: proxy_region,
+        riot_api
     });
 
     let app = Router::new()
@@ -65,51 +61,19 @@ enum Region {
     VN2
 }
 
-#[derive(Debug, Deserialize)]
-#[allow(non_snake_case)]
-struct LeagueEntryDto {
-    queueType: String,
-    tier: String,
-    rank: String,
-    leaguePoints: i32,
-    wins: i32,
-    losses: i32,
-}
+//#[debug_handler]
+async fn handle_get_rank(Path((region, game_name, tag_line)): Path<(String, String, String)>, state: Arc<AppState>) -> Result<Json<Vec<LeagueEntryDto>>, (axum::http::StatusCode, Json<Value>)> {
+    let account = state
+        .riot_api
+        .get_account(&game_name, &tag_line)
+        .await
+        .map_err(|e| (axum::http::StatusCode::BAD_REQUEST, Json(json!({ "error": e.to_string() }))))?;
 
-async fn handle_get_rank(Path((region, game_name, tag_line)): Path<(String, String, String)>, state: Arc<AppState>) -> Json<Value> {
-    match fetch_rank(&state.client, &state.proxy_region, &region, &game_name, &tag_line, &state.riot_api_key).await {
-        Ok(rank) => Json(rank),
-        Err(e) => Json(serde_json::json!(
-            {
-                "error": e.to_string()
-            }
-        ))
-    }
-}
+    let rank = state
+        .riot_api
+        .get_league(&region, &account.puuid)
+        .await
+        .map_err(|e| (axum::http::StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": e.to_string() }))))?;
 
-async fn fetch_rank(
-    client: &Client,
-    proxy_region: &str,
-    league_region: &str,
-    game_name: &str,
-    tag_line: &str,
-    api_key: &str,
-) -> Result<Value, Error> {
-    let summoner_url = format!(
-        "https://{}.api.riotgames.com/riot/account/v1/accounts/by-riot-id/{}/{}?api_key={}",
-        proxy_region, game_name, tag_line, api_key
-    );
-
-    let summoner_res: Value = client.get(&summoner_url).send().await?.json().await?;
-    let summoner_id = summoner_res["puuid"].as_str().unwrap_or_default();
-
-    // Step 2: Rank
-    let rank_url = format!(
-        "https://{}.api.riotgames.com/lol/league/v4/entries/by-puuid/{}?api_key={}",
-        league_region, summoner_id, api_key
-    );
-
-    let rank_res: Value = client.get(&rank_url).send().await?.json().await?;
-
-    Ok(rank_res)
+    Ok(Json(rank))
 }
