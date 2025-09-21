@@ -32,7 +32,6 @@ async fn main() {
     });
 
     let app = Router::new()
-        .route("/", get(|| async { "Hello, World!" }))
         .route(
             "/rank/{region}/{game_name}/{tag_line}",
             get({
