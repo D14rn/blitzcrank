@@ -1,2 +1,2 @@
 # Blitzcrank
-Standalone REST API wrapper for the Riot API
+Riot API proxy
